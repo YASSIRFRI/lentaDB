@@ -1,0 +1,430 @@
+package main
+
+import (
+	"crypto/md5"
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+	//"github.com/gofrs/flock"
+)
+
+
+type FileHeader interface {
+	WriteHeader(io.Writer) error
+	ReadHeader(io.ReaderAt) error
+	Size() int64
+}
+
+type FileManager struct{
+	directory string
+	fileheader FileHeader
+	WritePointer *os.File
+	logPointer *os.File
+	ReadPointer int64
+	MaxFileSize int64
+	MaxLogSize int64
+}
+
+
+func (fl *FileManager) init() error {
+	if fl.logPointer== nil{
+		log:=filepath.Join(fl.directory, "log")
+		file, err := os.OpenFile(log, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
+		if err != nil {
+			return errors.New("Error opening log file")
+		}
+		fl.logPointer=file
+	}
+	c:=make(chan bool)
+	go fl.flushLog(c)
+	test:=<-c
+	if test == false {
+		return errors.New("Error flushing log file")
+	}
+	return nil
+}
+
+func NewFileManager() (*FileManager, error) {
+	directory := "data"
+	f := FileManager{directory: directory}
+	if _, err := os.Stat(directory); os.IsNotExist(err) {
+		return nil, errors.New("Directory does not exist")
+	}
+	d, err := os.Open(directory)
+	if err != nil {
+		return nil, errors.New("Error opening directory")
+	}
+	dircontent, err := d.Readdir(-1)
+	files:=make([]os.FileInfo, 0)
+	for _, file := range dircontent {
+		if file.Name() == "log" {
+			continue
+		}
+		files = append(files, file)
+	}
+	if err != nil {
+		return nil, errors.New("Error reading directory")
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name() > files[j].Name()
+	})
+	var lastFile os.FileInfo
+	if len(files)>0{
+		lastFile = files[0]
+		filePath := filepath.Join(directory, lastFile.Name())
+		writePtr, err := os.OpenFile(filePath, os.O_RDWR|os.O_APPEND, 0755)
+		if err != nil {
+			return nil, errors.New("Error opening file for writing")
+		}
+		//fmt.Println("Last file", writePtr.Name())
+		f.WritePointer = writePtr
+	}else{
+		newfile ,err := f.createNewFile()
+		if err != nil {
+			return nil, err
+		}
+		f.WritePointer = newfile
+	}
+	//info := f.WritePointer.Name()
+	//finfo,err :=f.WritePointer.Stat()
+	if err != nil {
+		return nil, errors.New("Error reading file info")
+	}
+	//fmt.Println("File size", finfo.Size())
+	//fmt.Println("File name", info)
+	//err = f.init()
+	//if err != nil {
+		//return nil, errors.New("Error initializing file manager")
+	//}
+	log:=filepath.Join(f.directory, "log")
+	file, err := os.OpenFile(log, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
+	if err != nil {
+		return nil,errors.New("Error opening log file")
+	}
+	f.logPointer=file
+	if err != nil {
+		return nil, errors.New("Error initializing file manager")
+	}
+
+	return &f, nil
+}
+
+//func (f *FileManager) Read ([]byte,error){
+//}
+
+func (f *FileManager) Write(data []byte) error {
+	if f.WritePointer == nil {
+		fmt.Println("Write pointer is nil")
+		newfile, err := f.createNewFile()
+		if err != nil {
+			fmt.Println("Error creating new file")
+			return err
+		}
+		f.WritePointer = newfile
+	}
+	fileInfo, err := f.WritePointer.Stat()
+	if err != nil {
+		return err
+	}
+	if fileInfo.Size()+int64(len(data))>f.MaxFileSize-16{
+		fmt.Println("File size exceeded")
+		fmt.Println("File size", fileInfo.Size())
+		fmt.Println("Max file size", f.MaxFileSize)
+		fmt.Println(fileInfo.Size()+int64(len(data))>f.MaxFileSize-16)
+		fileContent := make([]byte, fileInfo.Size())
+		_,err:=f.WritePointer.ReadAt(fileContent, 0)
+		if err != nil {
+			fmt.Println("Error reading file content")
+			return err
+		}
+		hasher := md5.New()
+		hasher.Write(fileContent)
+		fmt.Println("Hash", hasher.Sum(nil))
+		hash := hasher.Sum(nil)
+		hashString := hex.EncodeToString(hash)
+		fmt.Println("Hex MD5 Hash:", hashString)
+		logMutes:=sync.Mutex{}
+		logMutes.Lock()
+		_,err=f.WritePointer.Write(hash)
+		if err != nil {
+			fmt.Println("Error writing hash")
+			return err
+		}
+		logMutes.Unlock()
+		f.WritePointer.Close()
+		newfile ,err := f.createNewFile()
+		if err != nil {
+			return err
+		}
+		f.WritePointer = newfile
+	}
+	_, err = f.WritePointer.Write(data)
+	return err
+}
+
+
+func (f *FileManager) createNewFile() (*os.File,error) {
+	filePath := filepath.Join(f.directory, time.Now().Format("20060102150405"))
+	filePath = filePath + ".sst"
+	file, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("Error creating new file 1")
+		return nil,err
+	}
+	if err := f.writeHeader(file); err != nil {
+		fmt.Println("Error writing header")
+		return nil,err
+	}
+	return file,nil
+}
+
+func (f *FileManager) writeHeader(file *os.File) error {
+	header:=NewSSTHeader()
+	header.Timestamp=time.Now()
+	header.Version=1
+	header.size=50
+	err:=header.WriteHeader(file);
+	return err
+}
+
+
+
+func (f *FileManager) Log(logRecord []byte) (error){
+	directory := f.directory
+	fmt.Println("Log file pointer", f.logPointer)
+	if f.logPointer == nil {
+		log:=filepath.Join(directory, "log")
+		file, err := os.OpenFile(log, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
+		if err != nil {
+			return errors.New("Error opening log file")
+		}
+		f.logPointer=file
+	}
+	_ , err:=f.logPointer.Write(logRecord)
+	if err != nil {
+		fmt.Println("Error writing to log file")
+		return err
+	}
+	return nil
+}
+
+func (f *FileManager)Read()(map[string]Entry, error) {
+    header := f.fileheader
+    err := header.ReadHeader(f.WritePointer)
+	fmt.Println("f.WritePointer", f.WritePointer.Name())
+    if err != nil {
+        fmt.Println("Error reading header")
+        return nil, err
+    }
+    offset := header.Size()
+    mp := make(map[string]Entry)
+    fileInfo, err := f.WritePointer.Stat()
+    if err != nil {
+        return nil, err
+    }
+    for offset < fileInfo.Size(){
+		fmt.Println("Offset", offset)
+        if offset+2 > fileInfo.Size() {
+            break
+        }
+        entrySizeBytes := make([]byte, 2)
+        _, err := f.WritePointer.ReadAt(entrySizeBytes, offset)
+        if err != nil {
+            fmt.Println("Error reading entry size")
+            return nil, err
+        }
+        entrySize := binary.BigEndian.Uint16(entrySizeBytes)
+        if offset+2+int64(entrySize) > fileInfo.Size() {
+            break
+        }
+        entryData := make([]byte, entrySize)
+        _, err = f.WritePointer.ReadAt(entryData, offset+2)
+        if err != nil {
+            fmt.Println("Error reading entry data")
+            return nil, err
+        }
+        entryType := entryData[0]
+        entryData = entryData[1:]
+        s := string(entryData)
+		//fmt.Println("Entry", s)
+		//fmt.Println("Entry type", entryType)
+        split := strings.Split(s, "=")
+        if entryType == 0 {
+			mp[split[0]] = Entry{Key:split[0],Value:split[1],t:0}
+        }else{
+			mp[split[0]] = Entry{Key:split[0],Value:split[1],t:1}
+		}
+        offset += int64(entrySize) + 2
+    }
+    return mp, nil
+}
+
+
+func (f *FileManager) loadFile(filetoLoad *os.File) (map[string]Entry, error) {
+    header := f.fileheader
+    err := header.ReadHeader(filetoLoad)
+    if err != nil {
+        fmt.Println("Error reading header")
+        return nil, err
+    }
+    offset := header.Size()
+    mp := make(map[string]Entry)
+    checksumSize := int64(16)
+	fileInfo, err := filetoLoad.Stat()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("Reading from File size", fileInfo.Size())
+    for offset < fileInfo.Size()-checksumSize{
+        entrySizeBytes := make([]byte, 2)
+        _, err := filetoLoad.ReadAt(entrySizeBytes, offset)
+        if err != nil {
+            if err == io.EOF {
+                break
+            }
+            fmt.Println("Error reading entry size")
+            return nil, err
+        }
+		//fmt.Println("Entry size bytes", entrySizeBytes)
+        entrySize := binary.BigEndian.Uint16(entrySizeBytes)
+		//fmt.Println("Entry size: ", entrySize)
+		//fmt.Println("offset: ",  offset)
+        // Reading entry type (1 byte)
+        //var entryType byte
+        //_, err = filetoLoad.ReadAt([]byte{entryType}, offset+2)
+        //if err != nil {
+            //fmt.Println("Error reading entry type")
+            //return nil, err
+        //}
+        entryData := make([]byte, entrySize)
+        _, err = filetoLoad.ReadAt(entryData, offset+2)
+        if err != nil {
+            fmt.Println("Error reading entry data")
+            return nil, err
+        }
+		entryType := entryData[0]
+		entryData = entryData[1:]
+		s := string(entryData)
+		split := strings.Split(s, "=")
+		if entryType == 0 {
+			mp[split[0]] = Entry{Key:split[0],
+				Value:split[1],t:0}
+		}else{
+			mp[split[0]] = Entry{Key:split[0],Value:split[1],t:1}
+		}
+        offset += int64(entrySize) +2  
+    }
+    checksumBytes := make([]byte, checksumSize)
+    _, err = filetoLoad.ReadAt(checksumBytes, offset)
+    if err != nil {
+        fmt.Println("Error reading checksum")
+        return nil, err
+    }
+    return mp, nil
+}
+
+
+func (f *FileManager) flushLog(c chan<- bool) error {
+	logInfo, err := f.logPointer.Stat()
+	if err != nil {
+		fmt.Println("Error reading log file")
+		fmt.Println(err)	
+		c<-false
+		return err
+	}
+	logsize:=logInfo.Size()
+    logcontent := make([]byte, logsize)
+    _, err = f.logPointer.ReadAt(logcontent, 0)
+    if err != nil {
+		fmt.Println("Error read content of the  log file")
+		fmt.Println(err)
+		c<-false
+        return err
+    }
+    if err != nil {
+		fmt.Println("Error obtaining lock for log file")
+		c<-false
+        return err
+    }
+	fmt.Println("Log content", len(logcontent))
+    err =f.Write(logcontent)
+    if err != nil {
+		fmt.Println("Error writing to SST file")
+		fmt.Println(err)
+		c<-false
+        return err
+    }
+	logmutex:=sync.Mutex{}
+	logmutex.Lock()
+	err=f.logPointer.Close()
+	if(err!=nil){
+		fmt.Println("Error closing log file")
+		fmt.Println(err)
+		c<-false
+		return err
+	}
+	err = os.Truncate(f.logPointer.Name(), 0)
+	f.logPointer ,err = os.OpenFile(f.logPointer.Name(), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
+	if err != nil {
+		fmt.Println("Error recreating the  log file")
+		fmt.Println(err)
+		c<-false
+		return err
+	}
+	logmutex.Unlock()
+	if(err!=nil){
+		fmt.Println("Error truncating log file")
+		fmt.Println(err)
+		c<-false
+		return err
+	}
+	c<-true
+    return nil
+}
+
+func (f *FileManager) flushMem(mem *MemTable) error {
+	// Iterate over mem.MemData
+	for k, v := range mem.Memdata {
+		entrySize := len(k) + len(v) + 4
+		entry := make([]byte, entrySize)
+		binary.BigEndian.PutUint16(entry[0:2], uint16(entrySize-2))
+		entry[2] = 0
+		copy(entry[3:len(k)+3], []byte(k))
+		entry[len(k)+3] = 61
+		copy(entry[len(k)+4:], v)
+		if err := f.Write(entry); err != nil {
+			return err
+		}
+	}
+	mem.Memdata = make(map[string][]byte)
+	for k, v := range mem.DeletedItems {
+		entrySize := len(k) + len(v) + 4
+		entry := make([]byte, entrySize)
+		binary.BigEndian.PutUint16(entry[0:2], uint16(entrySize-2))
+		entry[2] = 1 
+		copy(entry[3:len(k)+3], []byte(k))
+		entry[len(k)+3] = '='
+		copy(entry[len(k)+4:], v)
+		if err := f.Write(entry); err != nil {
+			return err
+		}
+	}
+	mem.DeletedItems = make(map[string][]byte)
+	//os.Remove(f.logPointer.Name())
+	//logfile, err := os.OpenFile(filepath.Join(f.directory, "log"), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
+	err := os.Truncate(f.logPointer.Name(), 0)
+	f.logPointer ,err = os.OpenFile(f.logPointer.Name(), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
+	if err != nil {
+		return errors.New("Error recreating the log file")
+	}
+	//f.logPointer = logfile
+	return nil
+}
