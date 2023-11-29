@@ -361,37 +361,105 @@ func (f *FileManager) closeFile() error{
 	if err != nil {
 		return err
 	}
-		fmt.Println("File size exceeded")
-		fmt.Println("File size", fileInfo.Size())
-		fmt.Println("Max file size", f.MaxFileSize)
-		fileContent := make([]byte, fileInfo.Size())
-		_,err=f.WritePointer.ReadAt(fileContent, 0)
-		if err != nil {
-			fmt.Println("Error reading file content")
-			return err
-		}
-		hasher := md5.New()
-		hasher.Write(fileContent)
-		fmt.Println("Hash", hasher.Sum(nil))
-		hash := hasher.Sum(nil)
-		hashString := hex.EncodeToString(hash)
-		fmt.Println("Hex MD5 Hash:", hashString)
-		logMutes:=sync.Mutex{}
-		logMutes.Lock()
-		_,err=f.WritePointer.Write(hash)
-		if err != nil {
-			fmt.Println("Error writing hash")
-			return err
-		}
-		logMutes.Unlock()
-		f.WritePointer.Close()
-		newfile ,err := f.createNewFile()
-		if err != nil {
-			return err
-		}
-		f.WritePointer = newfile
-		return nil
+	fileContent := make([]byte, fileInfo.Size())
+	_,err=f.WritePointer.ReadAt(fileContent, 0)
+	if err != nil {
+		fmt.Println("Error reading file content")
+		return err
+	}
+	hasher := md5.New()
+	hasher.Write(fileContent)
+	fmt.Println("Hash", hasher.Sum(nil))
+	hash := hasher.Sum(nil)
+	hashString := hex.EncodeToString(hash)
+	fmt.Println("Hex MD5 Hash:", hashString)
+	logMutes:=sync.Mutex{}
+	logMutes.Lock()
+	_,err=f.WritePointer.Write(hash)
+	if err != nil {
+		fmt.Println("Error writing hash")
+		return err
+	}
+	logMutes.Unlock()
+	f.WritePointer.Close()
+	newfile ,err := f.createNewFile()
+	if err != nil {
+		return err
+	}
+	f.WritePointer = newfile
+	return nil
 }
+
+//func (f *FileManager) compact() error {
+    //// Get a list of SST files in the directory
+    //files, err := ioutil.ReadDir(f.directory)
+    //if err != nil {
+        //return err
+    //}
+
+    //// Filter out non-SST files
+    //sstFiles := []os.FileInfo{}
+    //for _, file := range files {
+        //if strings.HasSuffix(file.Name(), ".sst") {
+            //sstFiles = append(sstFiles, file)
+        //}
+    //}
+
+    //// If there are less than or equal to 10 SST files, no need to compact
+    //if len(sstFiles) <= 10 {
+        //return nil
+    //}
+
+    //// Create a global map to store all entries
+    //globalMap := make(map[string]Entry)
+
+    //// Iterate over SST files
+    //for _, file := range sstFiles {
+        //// Load the content of the file into a map using your loadFile function
+        //filePath := filepath.Join(f.directory, file.Name())
+		//fileToCompact, err := os.Open(filePath)
+		//if err != nil {
+			//return err
+		//}
+        //fileMap, err := f.loadFile(fileToCompact)
+        //if err != nil {
+            //return err
+        //}
+        //for key, entry := range fileMap {
+            //if _, exists := globalMap[key]; !exists && !entry.IsDeleted {
+                //globalMap[key] = entry
+            //}
+        //}
+    //}
+    //// Create a new file using createNewFile method
+    //compactedFilePath := filepath.Join(f.directory, "compacted.sst")
+    //compactedFile, err := f.createNewFile(compactedFilePath)
+    //if err != nil {
+        //return err
+    //}
+    //defer compactedFile.Close()
+
+    //// Write the content of the global map to the new file
+    //for _, entry := range globalMap {
+        //entryBytes := entry.toBytes()
+        //_, err := compactedFile.Write(entryBytes)
+        //if err != nil {
+            //return err
+        //}
+    //}
+
+    //// Close the compacted file
+    //compactedFile.Close()
+
+    //// Delete the old SST files
+    //for _, file := range sstFiles {
+        //err := os.Remove(filepath.Join(f.directory, file.Name()))
+        //if err != nil {
+            //return err
+        //}
+    //}
+    //return nil
+//}
 
 func (f *FileManager) flushMem(mem *MemTable) error {
 	// Iterate over mem.MemData
