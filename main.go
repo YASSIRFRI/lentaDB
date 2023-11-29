@@ -197,7 +197,6 @@ func (db *FileDB) HandleSet(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.FormValue("key")
 	value := r.FormValue("value")
-
 	if key == "" || value == "" {
 		http.Error(w, "Key or value parameter is missing", http.StatusBadRequest)
 		return
@@ -217,12 +216,16 @@ func (db *FileDB) HandleDel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Key parameter is missing", http.StatusBadRequest)
 		return
 	}
-	_,err:=db.Del([]byte(key))
+	v,err:=db.Del([]byte(key))
 	if err != nil {
 		http.Error(w, "Error deleting key", http.StatusInternalServerError)
 		return
 	}
-	fmt.Fprintf(w, "DEL success for key %s", key)
+	if v == nil {
+		http.Error(w, "Key not found", http.StatusNotFound)
+		return
+	}
+	fmt.Fprintf(w, "%s", v)
 }
 
 
@@ -252,29 +255,29 @@ func main() {
 		return
 	}
 	FileManager.fileheader=header;
+	FileManager.init()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(FileManager)
 	if err != nil {
 		fmt.Println(err)
 		return	
 	}
-	//repl := &Repl{
-		//db:  db,
-		//in:  os.Stdin,
-		//out: os.Stdout,
-	//}
-	//repl.Start()
-	http.HandleFunc("/get", db.HandleGet)
-	http.HandleFunc("/set", db.HandleSet)
-	http.HandleFunc("/del", db.HandleDel)
-	port := 8080
-	fmt.Printf("Server started on :%d\n", port)
-	err = http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	repl := &Repl{
+		db:  db,
+		in:  os.Stdin,
+		out: os.Stdout,
 	}
+	repl.Start()
+	//http.HandleFunc("/get", db.HandleGet)
+	//http.HandleFunc("/set", db.HandleSet)
+	//http.HandleFunc("/del", db.HandleDel)
+	//port := 8080
+	//fmt.Printf("Server started on :%d\n", port)
+	//err = http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	//if err != nil {
+		//fmt.Println(err)
+		//os.Exit(1)
+	//}
 }

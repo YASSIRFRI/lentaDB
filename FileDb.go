@@ -55,7 +55,6 @@ func (fl *FileDB) exists(key []byte) ([]byte, error) {
             return []byte(v.Value), nil
         }
     }
-
     for {
         err := it.Next()
         if err == io.EOF {
@@ -146,6 +145,10 @@ func (fl *FileDB) Del(key []byte) ([]byte, error) {
         err:=fl.FileManager.Log(logEntry);
         if err != nil {
             return nil, err
+        }
+        if len(fl.MemTable.Memdata)>fl.CacheSize {
+            fl.FileManager.flushMem(fl.MemTable);
+            fl.MemTable.Memdata = make(map[string]Entry)
         }
         return v, nil
     }
