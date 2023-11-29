@@ -11,7 +11,6 @@ func TestSet(t *testing.T) {
     if err != nil {
         t.Errorf("Unexpected error: %v", err)
     }
-    f1.MaxLogSize = 100
     f1.MaxFileSize = 100
     f1.init()
     db, err := NewFileDB(f1)

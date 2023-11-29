@@ -33,8 +33,6 @@ func (e *Entry) toBytes() []byte {
     return entry
 }
 
-
-
 func (fl *FileDB) exists(key []byte) ([]byte, error) {
     if v, ok := fl.MemTable.Memdata[string(key)]; ok {
         if v.t == 1 {
@@ -94,13 +92,10 @@ func (fl *FileDB) exists(key []byte) ([]byte, error) {
 }
 
 func (fl *FileDB) Set(key, value []byte) error {
-    if len(key) > fl.MaxEntrySize || len(value) > fl.MaxEntrySize {
+    if len(key) +len(value) +1 > fl.MaxEntrySize {
         return errors.New("Entry size too large")
     }
     fl.MemTable.Memdata[string(key)] = Entry{Key: string(key), Value: string(value), t: 0}
-    //2 for the size 
-    //1 for the type of the entry
-    //1 for the = sign
     logSize:=2+len(key)+len(value)+1+1;
     logEntry:=make([]byte, logSize)
     binary.BigEndian.PutUint16(logEntry, uint16(len(key)+len(value)+2))
@@ -114,10 +109,11 @@ func (fl *FileDB) Set(key, value []byte) error {
     }
     //fmt.Println(logEntry)
     //fmt.Println(unsafe.Sizeof(fl.MemTable.Memdata)+unsafe.Sizeof(fl.MemTable.DeletedItems))
-    if len(fl.MemTable.Memdata)> fl.CacheSize {
+    if len(fl.MemTable.Memdata)>fl.CacheSize {
         //fl.FileManager.flushLog()
         //fl.MemTable.Memdata = make(map[string][]byte)
         fl.FileManager.flushMem(fl.MemTable);
+        fl.MemTable.Memdata = make(map[string]Entry)
     }
     return  nil
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,7 +32,6 @@ type FileManager struct{
 	logPointer *os.File
 	ReadPointer int64
 	MaxFileSize int64
-	MaxLogSize int64
 }
 
 
@@ -137,7 +137,6 @@ func (f *FileManager) Write(data []byte) error {
 
 
 func (f *FileManager) createNewFile() (*os.File,error) {
-	//use unix nano time
 	filePath := filepath.Join(f.directory, strconv.FormatInt(time.Now().UnixNano(), 10))
 	filePath = filePath + ".sst"
 	file, err := os.Create(filePath)
@@ -259,17 +258,7 @@ func (f *FileManager) loadFile(filetoLoad *os.File) (map[string]Entry, error) {
             fmt.Println("Error reading entry size")
             return nil, err
         }
-		//fmt.Println("Entry size bytes", entrySizeBytes)
         entrySize := binary.BigEndian.Uint16(entrySizeBytes)
-		//fmt.Println("Entry size: ", entrySize)
-		//fmt.Println("offset: ",  offset)
-        // Reading entry type (1 byte)
-        //var entryType byte
-        //_, err = filetoLoad.ReadAt([]byte{entryType}, offset+2)
-        //if err != nil {
-            //fmt.Println("Error reading entry type")
-            //return nil, err
-        //}
         entryData := make([]byte, entrySize)
         _, err = filetoLoad.ReadAt(entryData, offset+2)
         if err != nil {
@@ -382,99 +371,82 @@ func (f *FileManager) closeFile() error{
 	}
 	logMutes.Unlock()
 	f.WritePointer.Close()
-	newfile ,err := f.createNewFile()
-	if err != nil {
-		return err
-	}
-	f.WritePointer = newfile
 	return nil
 }
 
-//func (f *FileManager) compact() error {
-    //// Get a list of SST files in the directory
-    //files, err := ioutil.ReadDir(f.directory)
-    //if err != nil {
-        //return err
-    //}
-
-    //// Filter out non-SST files
-    //sstFiles := []os.FileInfo{}
-    //for _, file := range files {
-        //if strings.HasSuffix(file.Name(), ".sst") {
-            //sstFiles = append(sstFiles, file)
-        //}
-    //}
-
-    //// If there are less than or equal to 10 SST files, no need to compact
-    //if len(sstFiles) <= 10 {
-        //return nil
-    //}
-
-    //// Create a global map to store all entries
-    //globalMap := make(map[string]Entry)
-
-    //// Iterate over SST files
-    //for _, file := range sstFiles {
-        //// Load the content of the file into a map using your loadFile function
-        //filePath := filepath.Join(f.directory, file.Name())
-		//fileToCompact, err := os.Open(filePath)
-		//if err != nil {
-			//return err
-		//}
-        //fileMap, err := f.loadFile(fileToCompact)
-        //if err != nil {
-            //return err
-        //}
-        //for key, entry := range fileMap {
-            //if _, exists := globalMap[key]; !exists && !entry.IsDeleted {
-                //globalMap[key] = entry
-            //}
-        //}
-    //}
-    //// Create a new file using createNewFile method
-    //compactedFilePath := filepath.Join(f.directory, "compacted.sst")
-    //compactedFile, err := f.createNewFile(compactedFilePath)
-    //if err != nil {
-        //return err
-    //}
-    //defer compactedFile.Close()
-
-    //// Write the content of the global map to the new file
-    //for _, entry := range globalMap {
-        //entryBytes := entry.toBytes()
-        //_, err := compactedFile.Write(entryBytes)
-        //if err != nil {
-            //return err
-        //}
-    //}
-
-    //// Close the compacted file
-    //compactedFile.Close()
-
-    //// Delete the old SST files
-    //for _, file := range sstFiles {
-        //err := os.Remove(filepath.Join(f.directory, file.Name()))
-        //if err != nil {
-            //return err
-        //}
-    //}
-    //return nil
-//}
+func (f *FileManager) compact() error {
+    // Get a list of SST files in the directory
+    files, err := ioutil.ReadDir(f.directory)
+    if err != nil {
+        return err
+    }
+    sstFiles := []os.FileInfo{}
+    for _, file := range files {
+        if strings.HasSuffix(file.Name(), ".sst") {
+            sstFiles = append(sstFiles, file)
+        }
+    }
+    if len(sstFiles) <= 10 {
+        return nil
+    }
+    globalMap := make(map[string]Entry)
+    for _, file := range sstFiles {
+        filePath := filepath.Join(f.directory, file.Name())
+		fileToCompact, err := os.Open(filePath)
+		if err != nil {
+			return err
+		}
+        fileMap, err := f.loadFile(fileToCompact)
+        if err != nil {
+            return err
+        }
+        for _, entry := range fileMap {
+			if entry.t == 0 {
+				globalMap[entry.Key] = entry
+			}else{
+				delete(globalMap, entry.Key)
+			}
+        }
+    }
+    compactedFile, err := f.createNewFile()
+    if err != nil {
+        return err
+    }
+    defer compactedFile.Close()
+	buffer:=make([]byte, 0)
+    for _, entry := range globalMap {
+        entryBytes := entry.toBytes()
+		buffer=append(buffer, entryBytes...)
+    }
+    _, err = compactedFile.Write(buffer)
+    if err != nil {
+        return err
+    }
+    compactedFile.Close()
+    for _, file := range sstFiles {
+        err := os.Remove(filepath.Join(f.directory, file.Name()))
+        if err != nil {
+            return err
+        }
+    }
+    return nil
+}
 
 func (f *FileManager) flushMem(mem *MemTable) error {
-	// Iterate over mem.MemData
 	buffer:=make([]byte, 0)
 	for _, v := range mem.Memdata {
 		entry:=v.toBytes()
 		buffer=append(buffer, entry...)
 	}
-	//fmt.Println("Buffer", buffer)
 	f.Write(buffer)
 	f.closeFile()
-	mem.Memdata = make(map[string]Entry)
-	//os.Remove(f.logPointer.Name())
-	//logfile, err := os.OpenFile(filepath.Join(f.directory, "log"), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
-	err := os.Truncate(f.logPointer.Name(), 0)
+	//f.compact()	
+	newFile,err:=f.createNewFile()
+	if err != nil {
+		return err
+	}
+	f.WritePointer=newFile
+	err = os.Truncate(f.logPointer.Name(), 0)
 	f.logPointer ,err = os.OpenFile(f.logPointer.Name(), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
 	if err != nil {
 		return errors.New("Error recreating the log file")

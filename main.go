@@ -183,6 +183,10 @@ func (db *FileDB) HandleGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Key not found", http.StatusNotFound)
 		return
 	}
+	if value == nil {
+		http.Error(w, "Key not found", http.StatusNotFound)
+		return
+	}
 	fmt.Fprintf(w, "GET result for key %s: %s", key, value)
 }
 
@@ -227,13 +231,9 @@ func main() {
 	if err != nil {
 		fmt.Println("Error loading .env file")
 	}
-
 	maxFileSize, _ := strconv.Atoi(os.Getenv("MAX_FILE_SIZE"))
-	maxLogSize, _ := strconv.Atoi(os.Getenv("MAX_LOG_SIZE"))
-
 	FileManager, err := NewFileManager()
 	FileManager.MaxFileSize = int64(maxFileSize)
-	FileManager.MaxLogSize = int64(maxLogSize)
 	err = FileManager.init()
 	if err != nil {
 		fmt.Println(err)
@@ -244,6 +244,7 @@ func main() {
 	db, err := NewFileDB(FileManager)
 	maxEntrySize, _ := strconv.Atoi(os.Getenv("MAX_ENTRY_SIZE"))
 	cacheSize, _ := strconv.Atoi(os.Getenv("CACHE_SIZE"))
+	fmt.Println("Cache Size: ", cacheSize)
 	db.MaxEntrySize = maxEntrySize
 	db.CacheSize = cacheSize
 	if err != nil {
@@ -256,27 +257,24 @@ func main() {
 		return
 	}
 	fmt.Println(FileManager)
-	db.MaxEntrySize = 100
-	db.CacheSize = 5 
 	if err != nil {
 		fmt.Println(err)
 		return	
 	}
-	repl := &Repl{
-		db:  db,
-		in:  os.Stdin,
-		out: os.Stdout,
-	}
-	repl.Start()
-	//http.HandleFunc("/get", db.HandleGet)
-	//http.HandleFunc("/set", db.HandleSet)
-	//http.HandleFunc("/del", db.HandleDel)
-
-	//port := 8080
-	//fmt.Printf("Server started on :%d\n", port)
-	//err = http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
-	//if err != nil {
-		//fmt.Println(err)
-		//os.Exit(1)
+	//repl := &Repl{
+		//db:  db,
+		//in:  os.Stdin,
+		//out: os.Stdout,
 	//}
+	//repl.Start()
+	http.HandleFunc("/get", db.HandleGet)
+	http.HandleFunc("/set", db.HandleSet)
+	http.HandleFunc("/del", db.HandleDel)
+	port := 8080
+	fmt.Printf("Server started on :%d\n", port)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

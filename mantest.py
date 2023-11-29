@@ -34,8 +34,8 @@ for i in range(1000):
     send_set_request(i,i)
 
 ## Query each key
-#for key in key_values.keys():
-    #send_get_request(key)
+#for i in range(1000):
+    #send_get_request(i)
 
 #for key in key_values.keys():
     #send_delete_request(key)
