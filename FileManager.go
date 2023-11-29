@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -130,49 +131,14 @@ func (f *FileManager) Write(data []byte) error {
 		}
 		f.WritePointer = newfile
 	}
-	fileInfo, err := f.WritePointer.Stat()
-	if err != nil {
-		return err
-	}
-	if fileInfo.Size()+int64(len(data))>f.MaxFileSize-16{
-		fmt.Println("File size exceeded")
-		fmt.Println("File size", fileInfo.Size())
-		fmt.Println("Max file size", f.MaxFileSize)
-		fmt.Println(fileInfo.Size()+int64(len(data))>f.MaxFileSize-16)
-		fileContent := make([]byte, fileInfo.Size())
-		_,err:=f.WritePointer.ReadAt(fileContent, 0)
-		if err != nil {
-			fmt.Println("Error reading file content")
-			return err
-		}
-		hasher := md5.New()
-		hasher.Write(fileContent)
-		fmt.Println("Hash", hasher.Sum(nil))
-		hash := hasher.Sum(nil)
-		hashString := hex.EncodeToString(hash)
-		fmt.Println("Hex MD5 Hash:", hashString)
-		logMutes:=sync.Mutex{}
-		logMutes.Lock()
-		_,err=f.WritePointer.Write(hash)
-		if err != nil {
-			fmt.Println("Error writing hash")
-			return err
-		}
-		logMutes.Unlock()
-		f.WritePointer.Close()
-		newfile ,err := f.createNewFile()
-		if err != nil {
-			return err
-		}
-		f.WritePointer = newfile
-	}
-	_, err = f.WritePointer.Write(data)
+	_, err := f.WritePointer.Write(data)
 	return err
 }
 
 
 func (f *FileManager) createNewFile() (*os.File,error) {
-	filePath := filepath.Join(f.directory, time.Now().Format("20060102150405"))
+	//use unix nano time
+	filePath := filepath.Join(f.directory, strconv.FormatInt(time.Now().UnixNano(), 10))
 	filePath = filePath + ".sst"
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -390,34 +356,54 @@ func (f *FileManager) flushLog(c chan<- bool) error {
     return nil
 }
 
+func (f *FileManager) closeFile() error{
+	fileInfo, err := f.WritePointer.Stat()
+	if err != nil {
+		return err
+	}
+		fmt.Println("File size exceeded")
+		fmt.Println("File size", fileInfo.Size())
+		fmt.Println("Max file size", f.MaxFileSize)
+		fileContent := make([]byte, fileInfo.Size())
+		_,err=f.WritePointer.ReadAt(fileContent, 0)
+		if err != nil {
+			fmt.Println("Error reading file content")
+			return err
+		}
+		hasher := md5.New()
+		hasher.Write(fileContent)
+		fmt.Println("Hash", hasher.Sum(nil))
+		hash := hasher.Sum(nil)
+		hashString := hex.EncodeToString(hash)
+		fmt.Println("Hex MD5 Hash:", hashString)
+		logMutes:=sync.Mutex{}
+		logMutes.Lock()
+		_,err=f.WritePointer.Write(hash)
+		if err != nil {
+			fmt.Println("Error writing hash")
+			return err
+		}
+		logMutes.Unlock()
+		f.WritePointer.Close()
+		newfile ,err := f.createNewFile()
+		if err != nil {
+			return err
+		}
+		f.WritePointer = newfile
+		return nil
+}
+
 func (f *FileManager) flushMem(mem *MemTable) error {
 	// Iterate over mem.MemData
-	for k, v := range mem.Memdata {
-		entrySize := len(k) + len(v) + 4
-		entry := make([]byte, entrySize)
-		binary.BigEndian.PutUint16(entry[0:2], uint16(entrySize-2))
-		entry[2] = 0
-		copy(entry[3:len(k)+3], []byte(k))
-		entry[len(k)+3] = 61
-		copy(entry[len(k)+4:], v)
-		if err := f.Write(entry); err != nil {
-			return err
-		}
+	buffer:=make([]byte, 0)
+	for _, v := range mem.Memdata {
+		entry:=v.toBytes()
+		buffer=append(buffer, entry...)
 	}
-	mem.Memdata = make(map[string][]byte)
-	for k, v := range mem.DeletedItems {
-		entrySize := len(k) + len(v) + 4
-		entry := make([]byte, entrySize)
-		binary.BigEndian.PutUint16(entry[0:2], uint16(entrySize-2))
-		entry[2] = 1 
-		copy(entry[3:len(k)+3], []byte(k))
-		entry[len(k)+3] = '='
-		copy(entry[len(k)+4:], v)
-		if err := f.Write(entry); err != nil {
-			return err
-		}
-	}
-	mem.DeletedItems = make(map[string][]byte)
+	//fmt.Println("Buffer", buffer)
+	f.Write(buffer)
+	f.closeFile()
+	mem.Memdata = make(map[string]Entry)
 	//os.Remove(f.logPointer.Name())
 	//logfile, err := os.OpenFile(filepath.Join(f.directory, "log"), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
 	err := os.Truncate(f.logPointer.Name(), 0)
@@ -425,6 +411,5 @@ func (f *FileManager) flushMem(mem *MemTable) error {
 	if err != nil {
 		return errors.New("Error recreating the log file")
 	}
-	//f.logPointer = logfile
 	return nil
 }

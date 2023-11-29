@@ -30,8 +30,8 @@ def send_delete_request(key):
     print(f"DELETE Response: {response.status_code} - {response.text}")
 
 # Set 1000 random keys
-#for _ in range(1000):
-    #send_set_request()
+for i in range(1000):
+    send_set_request(i,i)
 
 ## Query each key
 #for key in key_values.keys():
@@ -43,7 +43,7 @@ def send_delete_request(key):
 #for key in key_values.keys():
     #send_get_request(key)
 
-send_set_request("yassir","fri")
-get_response = send_get_request("yassir")
-delete_response = send_delete_request("yassir")
-get_response = send_get_request("yassir")
+#send_set_request("yassir","fri")
+#get_response = send_get_request("yassir")
+#delete_response = send_delete_request("yassir")
+#get_response = send_get_request("yassir")

@@ -22,13 +22,27 @@ type Entry struct {
     t int 
 }
 
+func (e *Entry) toBytes() []byte {
+    entrySize := 2+len(e.Key)+len(e.Value)+1+1
+    entry := make([]byte, entrySize)
+    binary.BigEndian.PutUint16(entry, uint16(len(e.Key)+len(e.Value)+2))
+    entry[2] = byte(e.t)
+    copy(entry[3:], e.Key)
+    entry[len(e.Key)+3] = 61
+    copy(entry[len(e.Key)+4:], e.Value)
+    return entry
+}
+
 
 
 func (fl *FileDB) exists(key []byte) ([]byte, error) {
     if v, ok := fl.MemTable.Memdata[string(key)]; ok {
-        return v, nil
+        if v.t == 1 {
+            return nil, nil
+        } else {
+            return []byte(v.Value), nil
+        }
     }
-
     it := DirectoryIterator{file: fl.FileManager.WritePointer}
     mp, err := fl.FileManager.Read()
     if err != nil {
@@ -83,8 +97,7 @@ func (fl *FileDB) Set(key, value []byte) error {
     if len(key) > fl.MaxEntrySize || len(value) > fl.MaxEntrySize {
         return errors.New("Entry size too large")
     }
-    fl.MemTable.Memdata[string(key)] = value
-    delete(fl.MemTable.DeletedItems, string(key))
+    fl.MemTable.Memdata[string(key)] = Entry{Key: string(key), Value: string(value), t: 0}
     //2 for the size 
     //1 for the type of the entry
     //1 for the = sign
@@ -101,7 +114,7 @@ func (fl *FileDB) Set(key, value []byte) error {
     }
     //fmt.Println(logEntry)
     //fmt.Println(unsafe.Sizeof(fl.MemTable.Memdata)+unsafe.Sizeof(fl.MemTable.DeletedItems))
-    if len(fl.MemTable.Memdata)+len(fl.MemTable.DeletedItems) > fl.CacheSize {
+    if len(fl.MemTable.Memdata)> fl.CacheSize {
         //fl.FileManager.flushLog()
         //fl.MemTable.Memdata = make(map[string][]byte)
         fl.FileManager.flushMem(fl.MemTable);
@@ -126,8 +139,7 @@ func (fl *FileDB) Del(key []byte) ([]byte, error) {
     if v, err:=fl.exists(key); err != nil {
         return nil, err
     } else if v != nil {
-        delete(fl.MemTable.Memdata, string(key))
-        fl.MemTable.DeletedItems[string(key)]=v
+        fl.MemTable.Memdata[string(key)]=Entry{Key: string(key), Value: string(v), t: 1}
         logSize:=2+len(key)+len(v)+1+1;
         logEntry:=make([]byte, logSize)
         binary.BigEndian.PutUint16(logEntry, uint16(len(key)+len(v)+2))
@@ -146,8 +158,7 @@ func (fl *FileDB) Del(key []byte) ([]byte, error) {
 
 func NewFileDB(f *FileManager) (*FileDB, error) {
     MemTable:=&MemTable{
-        Memdata: make(map[string][]byte),
-        DeletedItems: make(map[string][]byte),
+        Memdata: make(map[string]Entry),
     }
     return &FileDB{
         FileManager: f,
