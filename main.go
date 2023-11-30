@@ -168,7 +168,6 @@ func (re *Repl) Start() {
 	interface DB: needs Reader,Writer
 	FileManager: read write 
 	once instantiated : the FileManager look into the file directory and loads the last file 
-
 */
 
 

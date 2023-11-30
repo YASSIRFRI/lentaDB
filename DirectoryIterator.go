@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"sort"
 	"io"
-	"fmt"
 )
 
-
+/*
+An iterator pattern implementation for iterating over the files in a directory.
+*/
 
 type DirectoryIterator struct {
 	file *os.File
@@ -21,7 +22,6 @@ func (d *DirectoryIterator) Next() error {
 		return err
 	}
 	currentModTime := currentFileInfo.ModTime()
-	fmt.Println("Current file", d.file.Name())
 	directory, err := os.ReadDir(filepath.Dir(d.file.Name()))
 	if err != nil {
 		return err

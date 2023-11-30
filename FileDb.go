@@ -8,6 +8,15 @@ import (
 )
 
 
+/*
+The FileDB type is the type of the database that is stored on disk. It has a FileManager, a MemTable, a MaxEntrySize and a CacheSize.
+it provides the following methods:
+exists: checks if a key exists in the database
+Set: sets a key value pair in the database
+Get: gets a value from the database
+Del: deletes a key value pair from the database
+NewFileDB: factory method to create a new FileDB
+*/
 
 type FileDB struct {
     FileManager *FileManager
@@ -30,7 +39,6 @@ func (fl *FileDB) exists(key []byte) ([]byte, error) {
         fmt.Println("Error in exists 4")
         return nil, err
     }
-    fmt.Println(mp)
     if v, ok := mp[string(key)]; ok {
         if v.t == 1 {
             return nil, nil
@@ -52,10 +60,6 @@ func (fl *FileDB) exists(key []byte) ([]byte, error) {
             fmt.Println("Error in exists 2")
             return nil, err
         }
-        fmt.Println(mp)
-        fmt.Println(string(key))
-        v, ok := mp[string(key)]
-        fmt.Println(v, ok)
         if v, ok := mp[string(key)]; ok {
             if v.t == 1 {
                 return nil, nil
@@ -103,7 +107,6 @@ func (fl *FileDB) Get(key []byte) ([]byte, error) {
     if v != nil {
         return v, nil
     }
-    fmt.Println("Key Not found!")
     return nil, nil
 }
 

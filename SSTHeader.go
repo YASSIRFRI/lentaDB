@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+/*
+SSTHeader is the type of the header of the SST file
+It could be extended to include more information, and can also be changed to a different format
+it should only implement the ReadHeader and WriteHeader methods
+*/
+
 type SSTHeader struct {
 	size 	int64  //header size
 	magic 	[]byte //8 bytes
@@ -20,12 +26,10 @@ func TimeStampToBytes(t time.Time) []byte {
 // 16 bytes hash
 func (s *SSTHeader) WriteHeader(w io.Writer) error {
 	header := make([]byte, s.size)
-	fmt.Println("Writing header", s.size)
 	copy(header[0:], s.magic)
 	copy(header[8:], []byte{0, 0, 0, 0, 0, 0, 0, 0})
 	copy(header[16:], []byte{0, 0})
 	copy(header[18:], TimeStampToBytes(s.Timestamp))
-	fmt.Println("Date size", len(TimeStampToBytes(s.Timestamp)))
 	_, err := w.Write(header)
 	if err != nil {
 		fmt.Println("Error writing header")

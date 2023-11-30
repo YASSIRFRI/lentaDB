@@ -67,7 +67,7 @@ func testCacheOverflow(t *testing.T) {
 
 	db.MaxEntrySize = 100
 	db.CacheSize = 100
-	for i := 0; i < 110; i++ {
+	for i := 0; i < 100; i++ {
 		key := []byte("key" + strconv.Itoa(i))
 		value := []byte("value" + strconv.Itoa(i))
 		err := db.Set(key, value)

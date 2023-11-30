@@ -18,6 +18,13 @@ import (
 )
 
 
+
+/*
+The Filemanger class is responsible for managing the storage buckets (.sst files) and the log file.
+It provides methods to write to the log file and to the storage buckets. It also provides methods to read from the log file and the storage buckets.
+The Filemanager class also provides methods to flush the log file to the storage buckets and to compact the storage buckets.
+
+*/
 type FileHeader interface {
 	WriteHeader(io.Writer) error
 	ReadHeader(io.ReaderAt) error
@@ -118,10 +125,13 @@ func (fl *FileManager) ValidateFile(file *os.File) error {
 
 func NewFileManager() (*FileManager, error) {
 	directory := "data"
-	f := FileManager{directory: directory}
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
-		return nil, errors.New("Directory does not exist")
+		err := os.Mkdir(directory, 0755)
+		if err != nil {
+			return nil, errors.New("Error creating directory")
+		}
 	}
+	f := FileManager{directory: directory}
 	d, err := os.Open(directory)
 	if err != nil {
 		return nil, errors.New("Error opening directory")
@@ -215,7 +225,6 @@ func (f *FileManager) writeHeader(file *os.File) error {
 
 func (f *FileManager) Log(logRecord []byte) (error){
 	directory := f.directory
-	fmt.Println("Log file pointer", f.logPointer)
 	if f.logPointer == nil {
 		log:=filepath.Join(directory, "log")
 		file, err := os.OpenFile(log, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
@@ -235,7 +244,6 @@ func (f *FileManager) Log(logRecord []byte) (error){
 func (f *FileManager)Read()(map[string]Entry, error) {
     header := f.fileheader
     err := header.ReadHeader(f.WritePointer)
-	fmt.Println("f.WritePointer", f.WritePointer.Name())
     if err != nil {
         fmt.Println("Error reading header")
         return nil, err
@@ -247,7 +255,6 @@ func (f *FileManager)Read()(map[string]Entry, error) {
         return nil, err
     }
     for offset < fileInfo.Size(){
-		fmt.Println("Offset", offset)
         if offset+2 > fileInfo.Size() {
             break
         }
@@ -270,8 +277,6 @@ func (f *FileManager)Read()(map[string]Entry, error) {
         entryType := entryData[0]
         entryData = entryData[1:]
         s := string(entryData)
-		//fmt.Println("Entry", s)
-		//fmt.Println("Entry type", entryType)
         split := strings.Split(s, "=")
         if entryType == 0 {
 			mp[split[0]] = Entry{Key:split[0],Value:split[1],t:0}
@@ -298,7 +303,6 @@ func (f *FileManager) loadFile(filetoLoad *os.File) (map[string]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Reading from File size", fileInfo.Size())
     for offset < fileInfo.Size()-checksumSize{
         entrySizeBytes := make([]byte, 2)
         _, err := filetoLoad.ReadAt(entrySizeBytes, offset)
@@ -328,12 +332,6 @@ func (f *FileManager) loadFile(filetoLoad *os.File) (map[string]Entry, error) {
 		}
         offset += int64(entrySize) +2  
     }
-    //checksumBytes := make([]byte, checksumSize)
-    //_, err = filetoLoad.ReadAt(checksumBytes, offset)
-    //if err != nil {
-        //fmt.Println("Error reading checksum")
-        //return nil, err
-    //}
     return mp, nil
 }
 
@@ -360,7 +358,6 @@ func (f *FileManager) flushLog(c chan<- bool) error {
 		c<-false
         return err
     }
-	fmt.Println("Log content", len(logcontent))
     err =f.Write(logcontent)
     if err != nil {
 		fmt.Println("Error writing to SST file")
@@ -409,10 +406,7 @@ func (f *FileManager) closeFile() error{
 	}
 	hasher := md5.New()
 	hasher.Write(fileContent)
-	fmt.Println("Hash", hasher.Sum(nil))
 	hash := hasher.Sum(nil)
-	hashString := hex.EncodeToString(hash)
-	fmt.Println("Hex MD5 Hash:", hashString)
 	logMutes:=sync.Mutex{}
 	logMutes.Lock()
 	_,err=f.WritePointer.Write(hash)

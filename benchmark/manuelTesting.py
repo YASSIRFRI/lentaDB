@@ -30,25 +30,23 @@ def send_delete_request(key):
     response = requests.delete(f"{BASE_URL}/del?key={key}")
     #outputfile.write(f"DELETE Response: {response.status_code} - {response.text}\n")
 
-# Set 1000 random keys
 #time the execution
 #timer start
 time_start = time.time()
 for i in range(1000):
     send_set_request(i,i)
 
-## Query each key
 for i in range(1000):
     send_get_request(i)
 
 for i in range(1000):
     send_delete_request(i)
 time_end = time.time()
+
+for i in  range(1000):
+    send_get_request(i)
+
 print(f"Execution time: {time_end - time_start:.6f} seconds")
-
-#for key in key_values.keys():
-    #send_get_request(key)
-
 #send_set_request("yassir","fri")
 #get_response = send_get_request("yassir")
 #delete_response = send_delete_request("yassir")
