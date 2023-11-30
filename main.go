@@ -255,7 +255,6 @@ func main() {
 		return
 	}
 	FileManager.fileheader=header;
-	FileManager.init()
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -264,20 +263,20 @@ func main() {
 		fmt.Println(err)
 		return	
 	}
-	repl := &Repl{
-		db:  db,
-		in:  os.Stdin,
-		out: os.Stdout,
-	}
-	repl.Start()
-	//http.HandleFunc("/get", db.HandleGet)
-	//http.HandleFunc("/set", db.HandleSet)
-	//http.HandleFunc("/del", db.HandleDel)
-	//port := 8080
-	//fmt.Printf("Server started on :%d\n", port)
-	//err = http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
-	//if err != nil {
-		//fmt.Println(err)
-		//os.Exit(1)
+	//repl := &Repl{
+		//db:  db,
+		//in:  os.Stdin,
+		//out: os.Stdout,
 	//}
+	//repl.Start()
+	http.HandleFunc("/get", db.HandleGet)
+	http.HandleFunc("/set", db.HandleSet)
+	http.HandleFunc("/del", db.HandleDel)
+	port := 8080
+	fmt.Printf("Server started on :%d\n", port)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

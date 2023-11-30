@@ -16,23 +16,6 @@ type FileDB struct {
     CacheSize int
 }
 
-type Entry struct {
-    Key string
-    Value string
-    t int 
-}
-
-func (e *Entry) toBytes() []byte {
-    entrySize := 2+len(e.Key)+len(e.Value)+1+1
-    entry := make([]byte, entrySize)
-    binary.BigEndian.PutUint16(entry, uint16(len(e.Key)+len(e.Value)+2))
-    entry[2] = byte(e.t)
-    copy(entry[3:], e.Key)
-    entry[len(e.Key)+3] = 61
-    copy(entry[len(e.Key)+4:], e.Value)
-    return entry
-}
-
 func (fl *FileDB) exists(key []byte) ([]byte, error) {
     if v, ok := fl.MemTable.Memdata[string(key)]; ok {
         if v.t == 1 {
@@ -64,7 +47,6 @@ func (fl *FileDB) exists(key []byte) ([]byte, error) {
             fmt.Println("Error in exists 3")
             return nil, err
         }
-
         mp, err := fl.FileManager.loadFile(it.file)
         if err != nil {
             fmt.Println("Error in exists 2")
@@ -86,7 +68,6 @@ func (fl *FileDB) exists(key []byte) ([]byte, error) {
             return nil, err
         }
     }
-
     return nil, nil
 }
 
@@ -102,23 +83,20 @@ func (fl *FileDB) Set(key, value []byte) error {
     copy(logEntry[3:], key)
     logEntry[len(key)+3]=61
     copy(logEntry[len(key)+4:], value)
-    err:=fl.FileManager.Log(logEntry);
+    err:=fl.FileManager.Log(logEntry)
     if err != nil {
         return err
     }
-    //fmt.Println(logEntry)
-    //fmt.Println(unsafe.Sizeof(fl.MemTable.Memdata)+unsafe.Sizeof(fl.MemTable.DeletedItems))
     if len(fl.MemTable.Memdata)>fl.CacheSize {
-        //fl.FileManager.flushLog()
-        //fl.MemTable.Memdata = make(map[string][]byte)
         fl.FileManager.flushMem(fl.MemTable);
         fl.MemTable.Memdata = make(map[string]Entry)
     }
     return  nil
 }
+
+
 func (fl *FileDB) Get(key []byte) ([]byte, error) {
     v, err := fl.exists(key)
-    //fmt.Println(v)
     if err != nil {
         return nil, err
     }
@@ -128,6 +106,7 @@ func (fl *FileDB) Get(key []byte) ([]byte, error) {
     fmt.Println("Key Not found!")
     return nil, nil
 }
+
 
 
 func (fl *FileDB) Del(key []byte) ([]byte, error) {

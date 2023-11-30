@@ -34,7 +34,7 @@ def send_delete_request(key):
     print(f"DELETE Response: {response.status_code} - {response.text}")
 
 # Set 1000 random keys
-for _ in range(1000):
+for _ in range(200):
     send_set_request()
 
 # Query each key

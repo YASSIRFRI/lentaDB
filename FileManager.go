@@ -15,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	//"github.com/gofrs/flock"
 )
 
 
@@ -49,6 +48,70 @@ func (fl *FileManager) init() error {
 	test:=<-c
 	if test == false {
 		return errors.New("Error flushing log file")
+	}
+	directoryContent, err := ioutil.ReadDir(fl.directory)
+	if err != nil {
+		return errors.New("Error reading directory")
+	}
+	files:=make([]os.FileInfo, 0)
+	for _, file := range directoryContent {
+		if file.Name() == "log" {
+			continue
+		}
+		files = append(files, file)
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name() > files[j].Name()
+	})
+	files = files[1:]
+	for _, file := range files {
+		filePath := filepath.Join(fl.directory, file.Name())
+		file, err := os.OpenFile(filePath, os.O_RDWR|os.O_APPEND, 0755)
+		if err != nil {
+			return errors.New("Error opening file for writing")
+		}
+		err = fl.ValidateFile(file)
+		if err != nil {
+			fmt.Println("Corrupted File Detected, cannot recover :(")
+		}
+	}
+	return nil
+}
+
+func (fl *FileManager) ValidateFile(file *os.File) error {
+	_, err := file.Seek(0, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	fileSize := fileInfo.Size()
+	if fileSize < 16 {
+		return errors.New("File is too small to validate")
+	}
+	buffer := make([]byte, fileSize-16)
+	_, err = file.Read(buffer)
+	if err != nil {
+		return err
+	}
+	hash := md5.New()
+	_, err = hash.Write(buffer)
+	if err != nil {
+		return err
+	}
+	calculatedHash := hex.EncodeToString(hash.Sum(nil))
+	expectedHashBytes := make([]byte, 16)
+	_, err = file.ReadAt(expectedHashBytes, fileSize-16)
+	if err != nil {
+		return err
+	}
+	hashString := hex.EncodeToString(expectedHashBytes)
+	if calculatedHash != hashString {
+		fmt.Println(file.Name())
+		fmt.Println(calculatedHash, hashString)
+		return errors.New("File validation failed")
 	}
 	return nil
 }
@@ -85,7 +148,6 @@ func NewFileManager() (*FileManager, error) {
 		if err != nil {
 			return nil, errors.New("Error opening file for writing")
 		}
-		//fmt.Println("Last file", writePtr.Name())
 		f.WritePointer = writePtr
 	}else{
 		newfile ,err := f.createNewFile()
@@ -94,17 +156,9 @@ func NewFileManager() (*FileManager, error) {
 		}
 		f.WritePointer = newfile
 	}
-	//info := f.WritePointer.Name()
-	//finfo,err :=f.WritePointer.Stat()
 	if err != nil {
 		return nil, errors.New("Error reading file info")
 	}
-	//fmt.Println("File size", finfo.Size())
-	//fmt.Println("File name", info)
-	//err = f.init()
-	//if err != nil {
-		//return nil, errors.New("Error initializing file manager")
-	//}
 	log:=filepath.Join(f.directory, "log")
 	file, err := os.OpenFile(log, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0755)
 	if err != nil {
@@ -117,9 +171,6 @@ func NewFileManager() (*FileManager, error) {
 
 	return &f, nil
 }
-
-//func (f *FileManager) Read ([]byte,error){
-//}
 
 func (f *FileManager) Write(data []byte) error {
 	if f.WritePointer == nil {
@@ -277,12 +328,12 @@ func (f *FileManager) loadFile(filetoLoad *os.File) (map[string]Entry, error) {
 		}
         offset += int64(entrySize) +2  
     }
-    checksumBytes := make([]byte, checksumSize)
-    _, err = filetoLoad.ReadAt(checksumBytes, offset)
-    if err != nil {
-        fmt.Println("Error reading checksum")
-        return nil, err
-    }
+    //checksumBytes := make([]byte, checksumSize)
+    //_, err = filetoLoad.ReadAt(checksumBytes, offset)
+    //if err != nil {
+        //fmt.Println("Error reading checksum")
+        //return nil, err
+    //}
     return mp, nil
 }
 
