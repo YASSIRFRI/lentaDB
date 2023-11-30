@@ -6,22 +6,24 @@
 
 Lenta DB is a persistent key-value store implemented in the Go programming language. It is designed to provide efficient and reliable storage for key-value pairs, focusing on performance and simplicity.
 ## Table of Contents
-1. [**Description**](#description)
-2. [**Deployment**](#deployment)
-    1. [**Environment Variables**](#environment-variables)
-    2. [**Cache Impact on Integrity**](#cache-impact-on-integrity)
-        1. [**Asynchrony of API Requests**](#asynchrony-of-api-requests)
-        2. [**Amortized Flush Price**](#amortized-flush-price)
-        3. [**Read-Heavy Usage**](#read-heavy-usage)
-        4. [**Crash Recovery**](#crash-recovery)
-3. [**Architecture**](#architecture)
-    1. [**Memtable**](#memtable)
-    2. [**SST Files Structure**](#sst-files-structure)
-        1. [**Header**](#header)
-        2. [**Encoding**](#encoding)
-    3. [**Write-Ahead Log (WAL)**](#write-ahead-log-wal)
-4. [**Usage**](#usage)
-5. [**License**](#license)
+## Table of Contents
+1. <span style="color:black; text-decoration:none;">[**Description**](#description)</span>
+2. <span style="color:black; text-decoration:none;">[**Deployment**](#deployment)</span>
+    1. <span style="color:black; text-decoration:none;">[**Environment Variables**](#environment-variables)</span>
+    2. <span style="color:black; text-decoration:none;">[**Cache Impact on Integrity**](#cache-impact-on-integrity)</span>
+        1. <span style="color:black; text-decoration:none;">[**Asynchrony of API Requests**](#asynchrony-of-api-requests)</span>
+        2. <span style="color:black; text-decoration:none;">[**Amortized Flush Price**](#amortized-flush-price)</span>
+        3. <span style="color:black; text-decoration:none;">[**Read-Heavy Usage**](#read-heavy-usage)</span>
+        4. <span style="color:black; text-decoration:none;">[**Crash Recovery**](#crash-recovery)</span>
+3. <span style="color:black; text-decoration:none;">[**Architecture**](#architecture)</span>
+    1. <span style="color:black; text-decoration:none;">[**Memtable**](#memtable)</span>
+    2. <span style="color:black; text-decoration:none;">[**SST Files Structure**](#sst-files-structure)</span>
+        1. <span style="color:black; text-decoration:none;">[**Header**](#header)</span>
+        2. <span style="color:black; text-decoration:none;">[**Encoding**](#encoding)</span>
+    3. <span style="color:black; text-decoration:none;">[**Write-Ahead Log (WAL)**](#write-ahead-log-wal)</span>
+4. <span style="color:black; text-decoration:none;">[**Usage**](#usage)</span>
+5. <span style="color:black; text-decoration:none;">[**License**](#license)</span>
+
 
 ## Description
 This repository contains the source code and technical documentation for the Lenta DB key-value store. The system is built to optimize read and write operations, providing a high-performance solution for persistent storage.
