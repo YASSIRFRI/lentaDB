@@ -1,6 +1,8 @@
 # Lenta DB
 
-![Lenta DB Logo](logo.png)
+<div align="center">
+  <img src="logo.png" alt="Lenta DB Logo" width="200"/>
+</div>
 
 Lenta DB is a persistent key-value store implemented in the Go programming language. It is designed to provide efficient and reliable storage for key-value pairs, focusing on performance and simplicity.
 
