@@ -5,24 +5,23 @@
 </div>
 
 Lenta DB is a persistent key-value store implemented in the Go programming language. It is designed to provide efficient and reliable storage for key-value pairs, focusing on performance and simplicity.
-
 ## Table of Contents
-1. [Description](#description)
-2. [Deployment](#deployment)
-    1. [Environment Variables](#environment-variables)
-    2. [Cache Impact on Integrity](#cache-impact-on-integrity)
-        1. [Asynchrony of API Requests](#asynchrony-of-api-requests)
-        2. [Amortized Flush Price](#amortized-flush-price)
-        3. [Read-Heavy Usage](#read-heavy-usage)
-        4. [Crash Recovery](#crash-recovery)
-3. [Architecture](#architecture)
-    1. [Memtable](#memtable)
-    2. [SST Files Structure](#sst-files-structure)
-        1. [Header](#header)
-        2. [Encoding](#encoding)
-    3. [Write-Ahead Log (WAL)](#write-ahead-log-wal)
-4. [Usage](#usage)
-5. [License](#license)
+1. [**Description**](#description)
+2. [**Deployment**](#deployment)
+    1. [**Environment Variables**](#environment-variables)
+    2. [**Cache Impact on Integrity**](#cache-impact-on-integrity)
+        1. [**Asynchrony of API Requests**](#asynchrony-of-api-requests)
+        2. [**Amortized Flush Price**](#amortized-flush-price)
+        3. [**Read-Heavy Usage**](#read-heavy-usage)
+        4. [**Crash Recovery**](#crash-recovery)
+3. [**Architecture**](#architecture)
+    1. [**Memtable**](#memtable)
+    2. [**SST Files Structure**](#sst-files-structure)
+        1. [**Header**](#header)
+        2. [**Encoding**](#encoding)
+    3. [**Write-Ahead Log (WAL)**](#write-ahead-log-wal)
+4. [**Usage**](#usage)
+5. [**License**](#license)
 
 ## Description
 This repository contains the source code and technical documentation for the Lenta DB key-value store. The system is built to optimize read and write operations, providing a high-performance solution for persistent storage.
