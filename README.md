@@ -1,6 +1,6 @@
 # Lenta DB
 
-![Lenta DB Logo](your_logo_url)
+![Lenta DB Logo](logo.png)
 
 Lenta DB is a persistent key-value store implemented in the Go programming language. It is designed to provide efficient and reliable storage for key-value pairs, focusing on performance and simplicity.
 
@@ -20,8 +20,7 @@ Lenta DB is a persistent key-value store implemented in the Go programming langu
         2. [Encoding](#encoding)
     3. [Write-Ahead Log (WAL)](#write-ahead-log-wal)
 4. [Usage](#usage)
-5. [Contributing](#contributing)
-6. [License](#license)
+5. [License](#license)
 
 ## Description
 This repository contains the source code and technical documentation for the Lenta DB key-value store. The system is built to optimize read and write operations, providing a high-performance solution for persistent storage.
@@ -68,8 +67,6 @@ To ensure data durability and recovery in the event of system failures, Lenta DB
 ## Usage
 Provide instructions on how to use and integrate Lenta DB into different projects.
 
-## Contributing
-Contributions to Lenta DB are welcome! Please follow the [Contributing Guidelines](CONTRIBUTING.md) to contribute to the development of the project.
 
 ## License
 This project is licensed under the [MIT License](LICENSE).
