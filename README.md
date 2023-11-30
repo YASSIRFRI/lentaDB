@@ -1,5 +1,15 @@
-# Lenta DB
 
+
+<style>
+  .nerd-font {
+    font-family: "Fira Code", monospace;
+    text-align: center;
+    font-size: 2em; 
+    color: grey;
+  }
+</style>
+
+# <div class="nerd-font">Lenta DB</div>
 <div align="center">
   <img src="logo.png" alt="Lenta DB Logo" width="200"/>
 </div>
